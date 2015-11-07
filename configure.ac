@@ -226,6 +226,7 @@ else
 	subdirs2="$subdirs2 examples/usr/hello_world_mt";
 	subdirs2="$subdirs2 examples/usr/hello_world_iov";
 	subdirs2="$subdirs2 examples/usr/hello_world_daemon";
+	subdirs2="$subdirs2 examples/usr/request_reply";
 
 if test "$mypj_found_event_headers" == "yes"; then
 	subdirs2="$subdirs2 examples/usr/hello_world_libevent";
@@ -295,6 +296,7 @@ AC_CONFIG_FILES([examples/usr/hello_world/Makefile])
 AC_CONFIG_FILES([examples/usr/hello_world_mt/Makefile])
 AC_CONFIG_FILES([examples/usr/hello_world_iov/Makefile])
 AC_CONFIG_FILES([examples/usr/hello_world_daemon/Makefile])
+AC_CONFIG_FILES([examples/usr/request_reply/Makefile])
 if test "$mypj_found_event_headers" == "yes"; then
 	AC_CONFIG_FILES([examples/usr/hello_world_libevent/Makefile])
 fi
