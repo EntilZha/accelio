@@ -15,7 +15,7 @@ using std::cout;
 struct session_data {
   struct xio_context	*ctx;
   struct xio_connection	*conn;
-  struct xio_msg	request;
+  struct xio_msg	requests[2];
 };
 
 static int n_messages = 2;
@@ -56,28 +56,31 @@ static int on_session_event(
 }
 
 static void send_msg(string header, string key, string value, session_data *session_data) {
-	xio_msg req;
-	req.out.header.iov_base = (void *) header.c_str();
-	req.out.header.iov_len = header.length() + 1;
+	xio_msg *req = session_data->requests;
+	//if (n_sent > 0) {
+	//	req++;
+	//}
+	req->out.header.iov_base = (void *) header.c_str();
+	req->out.header.iov_len = header.length() + 1;
 
-	req.in.sgl_type = XIO_SGL_TYPE_IOV;
-	req.in.data_iov.max_nents = XIO_IOVLEN;
+	req->in.sgl_type = XIO_SGL_TYPE_IOV;
+	req->in.data_iov.max_nents = XIO_IOVLEN;
 
-	req.out.sgl_type = XIO_SGL_TYPE_IOV;
-	req.out.data_iov.max_nents = XIO_IOVLEN;
+	req->out.sgl_type = XIO_SGL_TYPE_IOV;
+	req->out.data_iov.max_nents = XIO_IOVLEN;
 
 	cout << "BEGIN Message Send\n";
 	fprintf(stdout, "Header: %s\n", header.c_str());
 	fprintf(stdout, "Sending: %s and %s\n", key.c_str(), value.c_str());
 
-	req.out.data_iov.sglist[0].iov_base = (void *) key.c_str();
-	req.out.data_iov.sglist[0].iov_len = key.length() + 1;
+	req->out.data_iov.sglist[0].iov_base = (void *) key.c_str();
+	req->out.data_iov.sglist[0].iov_len = key.length() + 1;
 
-	req.out.data_iov.sglist[1].iov_base = (void *) value.c_str();
-	req.out.data_iov.sglist[1].iov_len = value.length() + 1;
+	req->out.data_iov.sglist[1].iov_base = (void *) value.c_str();
+	req->out.data_iov.sglist[1].iov_len = value.length() + 1;
 
-	req.out.data_iov.nents = 2;
-	xio_send_request(session_data->conn, &req);
+	req->out.data_iov.nents = 2;
+	xio_send_request(session_data->conn, req);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -107,14 +110,11 @@ static int on_response(struct xio_session *session, struct xio_msg *rsp, int las
 
   xio_release_response(rsp);
 
-	//if (n_sent < n_messages) {
-	//	req->in.header.iov_base = NULL;
-	//	req->in.header.iov_len = 0;
-	//	vmsg_sglist_set_nents(&req->in, 0);
-	//	send_msg(get_header, key_str2, value_str2, req, session_data);
-	//	n_sent++;
-	//}
+	req->in.header.iov_base = NULL;
+	req->in.header.iov_len = 0;
+	vmsg_sglist_set_nents(&req->in, 0);
 
+	xio_send_request(session_data->conn, req);
 
   return 0;
 }
@@ -127,6 +127,7 @@ int main(int argc, char *argv[])
   struct xio_session		*session;
   char				url[256];
   struct session_data		session_data;
+
   struct xio_session_params	params;
   struct xio_connection_params	cparams;
   struct xio_msg			*req;
@@ -150,20 +151,10 @@ int main(int argc, char *argv[])
   memset(&params, 0, sizeof(params));
   memset(&cparams, 0, sizeof(cparams));
 
-  /* initialize library */
   xio_init();
 
-  /* Logging ... */
-  if ( 0 ) {
-    int level = XIO_LOG_LEVEL_DEBUG;
-    xio_set_opt(NULL, XIO_OPTLEVEL_ACCELIO,
-		XIO_OPTNAME_LOG_LEVEL, &level, sizeof(level));
-  }
-
-  /* create thread context for the client */
   session_data.ctx = xio_context_create(NULL, 0, -1);
 
-  /* create url to connect to */
   if (argc > 3)
     sprintf(url, "%s://%s:%s", argv[3], argv[1], argv[2]);
   else
@@ -184,21 +175,16 @@ int main(int argc, char *argv[])
   session_data.conn = xio_connect(&cparams);
 
   /* create "hello world" message */
-  req = &session_data.request;
-
-  fprintf(stderr,"Prepare request at %p\n", req);
-
 	send_msg(put_header, key_str1, value_str1, &session_data);
+	//n_sent += 1;
+	//send_msg(get_header, key_str2, value_str2, &session_data);
 
-	xio_context_run_loop(session_data.ctx, 5000);
-  xio_disconnect(session_data.conn);
 
-
-  /* Run event dispatch for 1000 milliseconds */
+	xio_context_run_loop(session_data.ctx, XIO_INFINITE);
+	xio_context_destroy(session_data.ctx);
+	xio_shutdown();
 
   fprintf(stdout, "exit signaled\n");
-
-  printf("good bye\n");
   return 0;
 }
 
