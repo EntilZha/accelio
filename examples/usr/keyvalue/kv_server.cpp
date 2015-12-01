@@ -3,11 +3,16 @@
 #include <inttypes.h>
 #include <errno.h>
 #include <map>
+#include <sstream>
+#include <iostream>
 
 #include "libxio.h"
 
+using std::cout;
+using std::endl;
 using std::map;
 using std::string;
+using std::istringstream;
 
 
 /* server private data */
@@ -56,10 +61,7 @@ static int on_session_event(struct xio_session *session,
 /*---------------------------------------------------------------------------*/
 /* on_new_session							     */
 /*---------------------------------------------------------------------------*/
-static int on_new_session(struct xio_session *session,
-			  struct xio_new_session_req *req,
-			  void *cb_user_context)
-{
+static int on_new_session(struct xio_session *session, struct xio_new_session_req *req, void *cb_user_context) {
   struct server_data *server_data = (struct server_data *)cb_user_context;
 
   /* automatically accept the request */
@@ -75,70 +77,72 @@ static int on_new_session(struct xio_session *session,
   return 0;
 }
 
-/*---------------------------------------------------------------------------*/
-/* on_request callback							     */
-/*---------------------------------------------------------------------------*/
-static int on_request(struct xio_session *session,
-		      struct xio_msg *req,
-		      int last_in_rxq,
-		      void *cb_user_context)
-{
-  struct xio_msg	   *rsp;
+static void put(string key, string value) {
+	store[key] = value;
+}
 
-  struct xio_iovec_ex	*sglist = vmsg_sglist(&req->in);
-  //  int			nents = vmsg_sglist_nents(&req->in);
+static string get(string key) {
+	return store[key];
+}
 
-  fprintf(stderr,"Received request %p\n", req);
+static int send_response(string header, string key, string value, struct xio_msg *req) {
+	struct xio_msg *rsp;
+	string response_msg;
+	rsp = req;
+	rsp->request = req;
+	rsp->out.header.iov_base = (void *) header.c_str();
+	rsp->out.header.iov_len = header.length() + 1;
 
-	string msg((const char *) sglist[0].iov_base, sglist[0].iov_len);
+	if (header.compare("PUT")) {
+		put(key, value);
+		response_msg = "SUCCESS";
+	} else {
+		cout << "GET VALUE: " << get(key) << endl;
+		response_msg = "GETSUCCESS";
+	}
 
-  fprintf(stderr,"Received request header: (%p) %s\n",
-	  (char *) req -> in.header.iov_base,
-	  (char *) req -> in.header.iov_base);
-
-  fprintf(stderr,"Received request data: (%p) %s\n",
-	  (char *) sglist[0].iov_base,
-	  (char *) sglist[0].iov_base
-	  );
-
-	fprintf(stderr, "Testing: %s\n", msg.c_str());
-
-  req->in.header.iov_base	  = NULL;
-  req->in.header.iov_len	  = 0;
-  req->in.data_iov.nents = 1;
-
-  /*
-   * Prepare response using same request buffer..
-   */
-
-  rsp = req;
-
-  rsp -> request = req;
-  rsp->out.header.iov_base =
-    strdup("hello world header response");
-  rsp->out.header.iov_len =
-    strlen((const char *)
-	   rsp->out.header.iov_base) + 1;
-
-  rsp->out.sgl_type	   = XIO_SGL_TYPE_IOV;
-  rsp->out.data_iov.max_nents = XIO_IOVLEN;
-  rsp->out.data_iov.sglist[0].iov_base =
-    strdup("hello world data response!!");
-  rsp->out.data_iov.sglist[0].iov_len =
-    strlen((const char *)
-	   rsp->out.data_iov.sglist[0].iov_base) + 1;
-  rsp->out.data_iov.nents = 1;
+	rsp->out.sgl_type = XIO_SGL_TYPE_IOV;
+	rsp->out.data_iov.max_nents = XIO_IOVLEN;
+  rsp->out.data_iov.sglist[0].iov_base = (void *) response_msg.c_str();
+  rsp->out.data_iov.sglist[0].iov_len =  response_msg.length() + 1;
+	rsp->out.data_iov.nents = 1;
 
   fprintf(stderr,"Send response..\n");
 
   xio_send_response(rsp);
+}
+
+
+/*---------------------------------------------------------------------------*/
+/* on_request callback							     */
+/*---------------------------------------------------------------------------*/
+static int on_request(struct xio_session *session, struct xio_msg *req, int last_in_rxq, void *cb_user_context) {
+  struct xio_iovec_ex	*sglist = vmsg_sglist(&req->in);
+
+	string header(std::string(static_cast<char *>(req->in.header.iov_base), req->in.header.iov_len));
+
+	cout << "Header: " << header << endl;
+
+	istringstream iss(std::string(static_cast<char *>(sglist[0].iov_base), sglist[0].iov_len));
+	string key, value;
+	std::getline(iss, key, '\0');
+	std::getline(iss, value, '\0');
+
+	cout << "Received request data:\n";
+	cout << "Key: " << key << endl;
+	cout << "value: " << value << endl;
+
+
+
+	// Zero out before sending response
+  req->in.header.iov_base	  = NULL;
+  req->in.header.iov_len	  = 0;
+  req->in.data_iov.nents = 1;
+
+	send_response(header, key, value, req);
 
   return 0;
 }
-
-/*---------------------------------------------------------------------------*/
-/* asynchronous callbacks						     */
-/*---------------------------------------------------------------------------*/
 
 /*---------------------------------------------------------------------------*/
 /* main									     */
