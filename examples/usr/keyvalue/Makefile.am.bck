@@ -1,0 +1,43 @@
+# this is example file: examples/request_reply/Makefile.am
+CC=g++
+# additional include pathes necessary to compile the C programs
+if HAVE_INFINIBAND_VERBS
+    libxio_rdma_ldflags = -lrdmacm -libverbs
+else
+    libxio_rdma_ldflags =
+endif
+AM_CFLAGS = -DPIC -fPIC -I$(top_srcdir)/include @AM_CFLAGS@
+
+AM_LDFLAGS = -lxio $(libxio_rdma_ldflags) -lrt \
+	     -L$(top_builddir)/src/usr/
+
+CFLAGS=-c -Wall $(AM_CFLAGS)
+LDFLAGS=$(AM_LDFLAGS)
+kv_client_SOURCES =  kv_client.cpp
+kv_server_SOURCES =  kv_server.cpp
+kv_client_OBJECTS=$(kv_client_SOURCES:.cpp=.o)
+kv_server_OBJECTS=$(kv_server_SOURCES:.cpp=.o)
+
+all: kv_server kv_client
+#all: $(SOURCES) $(EXECUTABLE)
+	
+kv_server: $(kv_client_OBJECTS) 
+	$(CC) $(LDFLAGS) $(kv_client_OBJECTS) -o $@
+
+.cpp.o:
+	$(CC) $(CFLAGS) $< -o $@
+
+###############################################################################
+# THE PROGRAMS TO BUILD
+###############################################################################
+	
+# list of sources for the 'xio_perftest' binary
+	
+
+# the additional libraries needed to link xio_client
+#kv_client_LDADD = 	$(AM_LDFLAGS)
+#kv_server_LDADD = 	$(AM_LDFLAGS)
+
+#EXTRA_DIST = xio_msg.h	
+
+###############################################################################

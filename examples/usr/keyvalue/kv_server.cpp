@@ -1,10 +1,13 @@
 #include <stdio.h>
-#include <string.h>
+#include <string>
 #include <inttypes.h>
 #include <errno.h>
+#include <map>
 
 #include "libxio.h"
 
+using std::map;
+using std::string;
 
 
 /* server private data */
@@ -13,6 +16,7 @@ struct server_data {
   struct xio_connection	*connection;
 };
 
+map<string, string> store;
 
 /*---------------------------------------------------------------------------*/
 /* on_session_event							     */
@@ -61,12 +65,12 @@ static int on_new_session(struct xio_session *session,
   /* automatically accept the request */
   fprintf(stderr,"new session event. session:%p\n", session);
 
-  if (!server_data->connection) 
+  if (!server_data->connection)
     xio_accept(session, NULL, 0, NULL, 0);
   else
     xio_reject(session, (enum xio_status)EISCONN, NULL, 0);
 
-  
+
   fprintf(stderr,"Leaving on_new_session\n");
   return 0;
 }
@@ -86,14 +90,18 @@ static int on_request(struct xio_session *session,
 
   fprintf(stderr,"Received request %p\n", req);
 
+	string msg((const char *) sglist[0].iov_base, sglist[0].iov_len);
+
   fprintf(stderr,"Received request header: (%p) %s\n",
-	  (char *) req -> in.header.iov_base, 
+	  (char *) req -> in.header.iov_base,
 	  (char *) req -> in.header.iov_base);
 
   fprintf(stderr,"Received request data: (%p) %s\n",
 	  (char *) sglist[0].iov_base,
 	  (char *) sglist[0].iov_base
 	  );
+
+	fprintf(stderr, "Testing: %s\n", msg.c_str());
 
   req->in.header.iov_base	  = NULL;
   req->in.header.iov_len	  = 0;
@@ -131,13 +139,6 @@ static int on_request(struct xio_session *session,
 /*---------------------------------------------------------------------------*/
 /* asynchronous callbacks						     */
 /*---------------------------------------------------------------------------*/
-static struct xio_session_ops  server_ops = {
-  .on_session_event		=  on_session_event,
-  .on_new_session			=  on_new_session,
-  .on_msg_send_complete		=  NULL,
-  .on_msg				=  on_request,
-  .on_msg_error			=  NULL
-};
 
 /*---------------------------------------------------------------------------*/
 /* main									     */
@@ -147,6 +148,14 @@ int main(int argc, char *argv[])
   struct xio_server	*server;	/* server portal */
   struct server_data	server_data;
   char			url[256];
+
+	xio_session_ops server_ops;
+	server_ops.on_session_event = on_session_event;
+	server_ops.on_new_session = on_new_session;
+	server_ops.on_msg_send_complete = NULL;
+	server_ops.on_msg = on_request;
+	server_ops.on_msg_error = NULL;
+
 
   if (argc < 3) {
     printf("Usage: %s <host> <port> <transport:optional>"\
