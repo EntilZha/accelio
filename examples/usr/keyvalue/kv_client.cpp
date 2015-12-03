@@ -55,11 +55,7 @@ static int on_session_event(
   return 0;
 }
 
-static void send_msg(string header, string key, string value, session_data *session_data) {
-	xio_msg *req = session_data->requests;
-	//if (n_sent > 0) {
-	//	req++;
-	//}
+static void send_msg(string header, string key, string value, xio_msg *req, xio_connection *conn) {
 	req->out.header.iov_base = (void *) header.c_str();
 	req->out.header.iov_len = header.length() + 1;
 
@@ -80,7 +76,7 @@ static void send_msg(string header, string key, string value, session_data *sess
 	req->out.data_iov.sglist[1].iov_len = value.length() + 1;
 
 	req->out.data_iov.nents = 2;
-	xio_send_request(session_data->conn, req);
+	xio_send_request(conn, req);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -114,8 +110,6 @@ static int on_response(struct xio_session *session, struct xio_msg *rsp, int las
 	req->in.header.iov_len = 0;
 	vmsg_sglist_set_nents(&req->in, 0);
 
-	xio_send_request(session_data->conn, req);
-
   return 0;
 }
 
@@ -125,7 +119,7 @@ static int on_response(struct xio_session *session, struct xio_msg *rsp, int las
 int main(int argc, char *argv[])
 {
   struct xio_session		*session;
-  char				url[256];
+  char url[256];
   struct session_data		session_data;
 
   struct xio_session_params	params;
@@ -160,27 +154,29 @@ int main(int argc, char *argv[])
   else
     sprintf(url, "rdma://%s:%s", argv[1], argv[2]);
 
-  params.type		= XIO_SESSION_CLIENT;
-  params.ses_ops		= &ses_ops;
+  params.type	= XIO_SESSION_CLIENT;
+  params.ses_ops = &ses_ops;
   params.user_context	= &session_data;
-  params.uri		= url;
+  params.uri = url;
 
   session = xio_session_create(&params);
 
-  cparams.session			= session;
-  cparams.ctx			= session_data.ctx;
+  cparams.session	= session;
+  cparams.ctx	= session_data.ctx;
   cparams.conn_user_context	= &session_data;
 
   /* connect the session  */
   session_data.conn = xio_connect(&cparams);
 
   /* create "hello world" message */
-	send_msg(put_header, key_str1, value_str1, &session_data);
-	//n_sent += 1;
-	//send_msg(get_header, key_str2, value_str2, &session_data);
-
+	xio_msg* m0 = new xio_msg();
+	xio_msg* m1 = new xio_msg();
+	send_msg(put_header, key_str1, value_str1, m0, session_data.conn);
+	send_msg(get_header, key_str2, value_str2, m1, session_data.conn);
 
 	xio_context_run_loop(session_data.ctx, XIO_INFINITE);
+
+
 	xio_context_destroy(session_data.ctx);
 	xio_shutdown();
 

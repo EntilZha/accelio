@@ -93,6 +93,7 @@ static int send_response(string header, string key, string value, struct xio_msg
 	rsp->out.header.iov_base = (void *) header.c_str();
 	rsp->out.header.iov_len = header.length() + 1;
 
+	cout << "MSG RESPONSE\n";
 	if (header.compare("PUT")) {
 		put(key, value);
 		response_msg = "SUCCESS";
@@ -107,9 +108,8 @@ static int send_response(string header, string key, string value, struct xio_msg
   rsp->out.data_iov.sglist[0].iov_len =  response_msg.length() + 1;
 	rsp->out.data_iov.nents = 1;
 
-  fprintf(stderr,"Send response..\n");
-
   xio_send_response(rsp);
+	cout << "Response sent\n";
 }
 
 

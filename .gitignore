@@ -28,6 +28,8 @@ raio_client
 raio_server
 xio_client
 xio_server
+kv_server
+kv_client
 xio_rdma_client
 xio_rdma_server
 xio_bidi_client
